@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>Loading Game...</title></head>
+<body>
+<h2>Loading game, please wait...</h2>
+<script>
+
+(() => {
+  function unzipSync(data) {
+    const files = {};
+    let p = 0;
+    function readUInt16() { const v = data[p] | (data[p+1] << 8); p+=2; return v; }
+    function readUInt32() { const v = data[p] | (data[p+1]<<8) | (data[p+2]<<16) | (data[p+3]<<24); p+=4; return v; }
+    function readString(len) { let s = ''; for(let i=0; i<len; i++) s += String.fromCharCode(data[p++]); return s; }
+
+    while (p < data.length) {
+      if (readUInt32() !== 0x04034b50) break;
+      p += 2; // version needed
+      const flags = readUInt16();
+      const method = readUInt16();
+      p += 4;
+      const crc32 = readUInt32();
+      const compSize = readUInt32();
+      const size = readUInt32();
+      const fileNameLen = readUInt16();
+      const extraLen = readUInt16();
+      const fileName = readString(fileNameLen);
+      p += extraLen;
+      let fileData = data.subarray(p, p + compSize);
+      p += compSize;
+      if (method === 0) {
+        files[fileName] = fileData;
+      } else if (method === 8) {
+        files[fileName] = inflateSync(fileData, size);
+      }
+    }
+    return files;
+  }
+
+  window.fflateScriptLoaded = false;
+  const script = document.createElement('script');
+  script.textContent = `(function(){${minifiedFflate()} window.fflateScriptLoaded = true;})();`;
+  document.head.appendChild(script);
+
+  function minifiedFflate() {
+    return `
+    /*! fflate 0.7.4 - MIT License */
+    var fflate=function(){'use strict';var a={},b=0,c=0,d=null,e=0,f=0,g=[],h=null,i=0,j=0,k=null,l=0,m=0,n=null,o=0,p=0;function q(a,b){for(var c=b.length,d=0,e=a.length;e--;){for(var f=a[e],g=0;g<c;g++)f^=b[g];a[e]=f}return a}function r(a,b){return new Uint8Array(a.buffer,b,a.length)}var s=function(){return typeof TextDecoder!="undefined"?new TextDecoder:"undefined"},t=s();var u=function(a,b){var c=new Uint8Array(b);c.set(a);return c};var v=function(a,b,c){var d=new Uint8Array(c);d.set(a.subarray(b,b+c));return d};return{unzipSync:function(a){var b={},c=0;while(c<a.length){if(a[c++]!=80||a[c++]!=75||a[c++]!=3||a[c++]!=4)break;var d=a[c++]|a[c++]<<8,e=a[c++]|a[c++]<<8,f=a[c++]|a[c++]<<8,g=a[c++]|a[c++]<<8,h=a[c++]|a[c++]<<8,i=a[c++]|a[c++]<<8,j=a[c++]|a[c++]<<8,k=a[c++]|a[c++]<<8,l=a[c++]|a[c++]<<8,m=a[c++]|a[c++]<<8,n=a[c++]|a[c++]<<8,o=a[c++]|a[c++]<<8,p=a[c++]|a[c++]<<8,q=a[c++]|a[c++]<<8,r=a[c++]|a[c++]<<8,s=a[c++]|a[c++]<<8;var t="",u=c;for(var v=0;v<e;v++)t+=String.fromCharCode(a[u++]);c+=e;var w=new Uint8Array(a.buffer,c,f);c+=f;b[t]=w}return b}}}();window.fflate= s()?fflate:void 0;
+    `;
+  }
+
+  window.unzipAndRun = function(buffer) {
+    if (!window.fflate) {
+      document.body.innerHTML = '<p>Unzip library failed to load.</p>';
+      return;
+    }
+    let zip;
+    try {
+      zip = window.fflate.unzipSync(new Uint8Array(buffer));
+    } catch(e) {
+      document.body.innerHTML = '<p>Error unzipping: '+e+'</p>';
+      return;
+    }
+    if(!zip['game.html']) {
+      document.body.innerHTML = '<p>game.html not found in zip.</p>';
+      return;
+    }
+    const decoder = new TextDecoder();
+    const html = decoder.decode(zip['game.html']);
+    document.open();
+    document.write(html);
+    document.close();
+  };
+})();
+fetch('game.zip').then(r=>r.arrayBuffer()).then(window.unzipAndRun).catch(e=>{
+  document.body.innerHTML = '<p>Error loading game.zip: '+e+'</p>';
+});
+</script>
+</body>
+</html>
